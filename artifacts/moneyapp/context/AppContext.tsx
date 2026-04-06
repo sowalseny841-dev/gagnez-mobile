@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export type Transaction = {
   id: string;
-  type: "earn" | "withdraw";
+  type: "earn" | "withdraw" | "recharge";
   amount: number;
   description: string;
   date: string;
@@ -17,6 +17,7 @@ type AppContextType = {
   adsWatched: number;
   transactions: Transaction[];
   addEarning: (amount: number, description: string) => void;
+  addRecharge: (amount: number, description: string) => void;
   requestWithdraw: (amount: number) => boolean;
   isLoading: boolean;
 };
@@ -53,7 +54,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (total) setTotalEarned(parseFloat(total));
       if (ads) setAdsWatched(parseInt(ads, 10));
       if (txs) setTransactions(JSON.parse(txs));
-    } catch (e) {
+    } catch {
     } finally {
       setIsLoading(false);
     }
@@ -95,6 +96,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [balance, totalEarned, adsWatched, transactions]
   );
 
+  const addRecharge = useCallback(
+    (amount: number, description: string) => {
+      const newBalance = balance + amount;
+      const newTx: Transaction = {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        type: "recharge",
+        amount,
+        description,
+        date: new Date().toISOString(),
+      };
+      const newTxs = [newTx, ...transactions].slice(0, 100);
+      setBalance(newBalance);
+      setTransactions(newTxs);
+      saveData(newBalance, totalEarned, adsWatched, newTxs);
+    },
+    [balance, totalEarned, adsWatched, transactions]
+  );
+
   const requestWithdraw = useCallback(
     (amount: number): boolean => {
       const MIN_WITHDRAW = 5000;
@@ -124,6 +143,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         adsWatched,
         transactions,
         addEarning,
+        addRecharge,
         requestWithdraw,
         isLoading,
       }}
