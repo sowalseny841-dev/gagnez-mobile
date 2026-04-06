@@ -16,18 +16,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
         with:
           version: 10
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
-
       - run: pnpm install --frozen-lockfile
-
       - name: Vérification TypeScript
         run: pnpm run typecheck
 
@@ -48,7 +44,7 @@ jobs:
       - name: Audit des dépendances
         run: pnpm audit --audit-level=high || true
 
-  # ─── Build + Archive ─────────────────────────────────────────────────────────
+  # ─── Build Web + Archive source ──────────────────────────────────────────────
   build:
     name: Build Expo (Web)
     runs-on: ubuntu-latest
@@ -77,11 +73,13 @@ jobs:
             artifacts/moneyapp/services/ \
             artifacts/moneyapp/data/ \
             artifacts/moneyapp/constants/ \
+            artifacts/moneyapp/assets/ \
             artifacts/moneyapp/package.json \
             artifacts/moneyapp/app.json \
+            artifacts/moneyapp/eas.json \
             README.md \
-            PAIEMENT.md 2>/dev/null || true
-          ls -lh gagnez-mobile-source.zip
+            PAIEMENT.md \
+            POLITIQUE_CONFIDENTIALITE.md 2>/dev/null || true
 
       - name: Upload archive source
         uses: actions/upload-artifact@v4
@@ -97,6 +95,60 @@ jobs:
           path: artifacts/moneyapp/dist/
           if-no-files-found: ignore
           retention-days: 30
+
+  # ─── EAS Build — APK Preview ─────────────────────────────────────────────────
+  eas-build-apk:
+    name: EAS Build APK (Android)
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.EAS_BUILD_ENABLED == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Installer EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Build APK (preview)
+        working-directory: artifacts/moneyapp
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_PUBLIC_FEDAPAY_PUBLIC_KEY: ${{ secrets.FEDAPAY_PUBLIC_KEY }}
+        run: eas build --platform android --profile preview --non-interactive --no-wait
+
+  # ─── EAS Build — AAB Production ──────────────────────────────────────────────
+  eas-build-aab:
+    name: EAS Build AAB Production (Play Store)
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.EAS_BUILD_ENABLED == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Installer EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Build AAB (production Play Store)
+        working-directory: artifacts/moneyapp
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_PUBLIC_FEDAPAY_PUBLIC_KEY: ${{ secrets.FEDAPAY_PUBLIC_KEY }}
+        run: eas build --platform android --profile production --non-interactive --no-wait
 
   # ─── Release GitHub ──────────────────────────────────────────────────────────
   release:
@@ -117,7 +169,6 @@ jobs:
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Tag: $TAG"
 
       - name: Télécharger l'archive source
         uses: actions/download-artifact@v4
@@ -137,23 +188,27 @@ jobs:
             --title "GagnezMobile v${VERSION} — ${DATE}" \
             --notes "## 🚀 GagnezMobile — Mise à jour du ${DATE}
 
-          ### ✅ Fonctionnalités incluses
+          ### ✅ Fonctionnalités
           - 📺 Gains via publicités (300–1 000 GNF par pub)
-          - 💳 Paiement FedaPay intégré (Orange Money, MTN, Wave, Carte)
+          - 💳 Rechargement FedaPay (Orange Money, MTN, Wave, Carte)
           - 🏦 Retrait Mobile Money
           - 📊 Historique des transactions
-          - 🏆 Système de niveaux
+          - 🏆 Système de niveaux (Débutant → Maître)
+          - 🔧 Bug fix: rechargements séparés des gains publicitaires
 
-          ### 🔧 CI/CD
-          - ✅ TypeScript OK · ✅ Sécurité OK · ✅ Build OK
+          ### 📦 Build Android
+          Pour activer les builds APK/AAB automatiques :
+          1. Créez un compte sur https://expo.dev
+          2. Ajoutez \`EXPO_TOKEN\` dans GitHub Secrets
+          3. Activez \`EAS_BUILD_ENABLED = true\` dans GitHub Variables
 
-          ### 📲 Installation
+          ### 📲 Installation via Expo Go
           \`\`\`bash
           git clone https://github.com/${{ github.repository }}.git
           pnpm install
           pnpm --filter @workspace/moneyapp run dev
           \`\`\`
 
-          Voir [PAIEMENT.md](./PAIEMENT.md) pour configurer FedaPay." \
+          Voir [PAIEMENT.md](./PAIEMENT.md) et [store/guide_publication.md](./store/guide_publication.md)" \
             ./release-assets/gagnez-mobile-source.zip \
             --latest
