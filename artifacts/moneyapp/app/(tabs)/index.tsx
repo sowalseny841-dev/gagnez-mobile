@@ -25,7 +25,7 @@ import { getDailyAds } from "@/data/ads";
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { balance, totalEarned, adsWatched, addEarning, requestWithdraw } = useApp();
+  const { balance, totalEarned, adsWatched, addEarning, addRecharge, requestWithdraw } = useApp();
   const [refreshing, setRefreshing] = useState(false);
   const [ads, setAds] = useState<AdData[]>(getDailyAds());
   const [completedAds, setCompletedAds] = useState<Set<string>>(new Set());
@@ -166,7 +166,7 @@ export default function HomeScreen() {
         visible={rechargementVisible}
         onClose={() => setRechargementVisible(false)}
         onSuccess={(amount) => {
-          addEarning(amount, `Rechargement FedaPay`);
+          addRecharge(amount, `Rechargement FedaPay`);
           setLastEarned(amount);
           setShowEarn(true);
           earnAnim.setValue(0);
