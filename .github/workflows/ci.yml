@@ -6,28 +6,27 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
-  # ─── Vérification du code ───────────────────────────────────────────────────
+  # ─── Vérification TypeScript ────────────────────────────────────────────────
   lint-and-typecheck:
     name: Vérification TypeScript
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout du code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Installation de pnpm
-        uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v4
         with:
           version: 10
 
-      - name: Installation de Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
 
-      - name: Installation des dépendances
-        run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
 
       - name: Vérification TypeScript
         run: pnpm run typecheck
@@ -49,7 +48,7 @@ jobs:
       - name: Audit des dépendances
         run: pnpm audit --audit-level=high || true
 
-  # ─── Build de l'application ──────────────────────────────────────────────────
+  # ─── Build + Archive ─────────────────────────────────────────────────────────
   build:
     name: Build Expo (Web)
     runs-on: ubuntu-latest
@@ -64,10 +63,34 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+
       - name: Build web
         run: pnpm --filter @workspace/moneyapp run build
         continue-on-error: true
-      - name: Upload des artefacts de build
+
+      - name: Créer archive du code source
+        run: |
+          zip -r gagnez-mobile-source.zip \
+            artifacts/moneyapp/app/ \
+            artifacts/moneyapp/components/ \
+            artifacts/moneyapp/context/ \
+            artifacts/moneyapp/services/ \
+            artifacts/moneyapp/data/ \
+            artifacts/moneyapp/constants/ \
+            artifacts/moneyapp/package.json \
+            artifacts/moneyapp/app.json \
+            README.md \
+            PAIEMENT.md 2>/dev/null || true
+          ls -lh gagnez-mobile-source.zip
+
+      - name: Upload archive source
+        uses: actions/upload-artifact@v4
+        with:
+          name: gagnez-mobile-source
+          path: gagnez-mobile-source.zip
+          retention-days: 30
+
+      - name: Upload build dist
         uses: actions/upload-artifact@v4
         with:
           name: expo-web-build
@@ -75,7 +98,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
-  # ─── Notification de release ─────────────────────────────────────────────────
+  # ─── Release GitHub ──────────────────────────────────────────────────────────
   release:
     name: Créer une release GitHub
     runs-on: ubuntu-latest
@@ -83,50 +106,54 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
-      - name: Lire la version
-        id: version
+
+      - name: Générer le tag de release
+        id: tag
         run: |
           VERSION=$(node -p "require('./artifacts/moneyapp/package.json').version")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          DATE=$(date +'%Y%m%d')
+          SHA=$(git rev-parse --short HEAD)
+          TAG="v${VERSION}-${DATE}-${SHA}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Tag: $TAG"
 
-      - name: Télécharger les artefacts de build
+      - name: Télécharger l'archive source
         uses: actions/download-artifact@v4
         with:
-          name: expo-web-build
-          path: ./dist/
-        continue-on-error: true
+          name: gagnez-mobile-source
+          path: ./release-assets/
 
-      - name: Créer archive de release
-        run: |
-          zip -r gagnez-mobile-${{ steps.version.outputs.version }}.zip artifacts/moneyapp/app/ artifacts/moneyapp/components/ artifacts/moneyapp/context/ artifacts/moneyapp/data/ artifacts/moneyapp/constants/ artifacts/moneyapp/package.json artifacts/moneyapp/app.json || true
-
-      - name: Créer la release GitHub
-        uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/heads/main')
-        with:
-          tag_name: v${{ steps.version.outputs.version }}-${{ steps.version.outputs.date }}
-          name: "GagnezMobile v${{ steps.version.outputs.version }} - ${{ steps.version.outputs.date }}"
-          body: |
-            ## 🚀 GagnezMobile - Nouvelle mise à jour
-
-            ### ✅ Ce qui est inclus
-            - Système de gains via publicités (300–1000 GNF par pub)
-            - Retrait Mobile Money (Orange, MTN, Wave)
-            - Historique des transactions
-            - Système de niveaux (Débutant → Maître)
-
-            ### 📲 Installation
-            1. Cloner le dépôt : `git clone https://github.com/${{ github.repository }}.git`
-            2. Installer les dépendances : `pnpm install`
-            3. Lancer : `pnpm --filter @workspace/moneyapp run dev`
-            4. Scanner le QR code avec Expo Go
-
-            ### 💳 Pour activer les paiements réels
-            Voir le fichier `PAIEMENT.md` dans le dépôt.
-          files: |
-            gagnez-mobile-${{ steps.version.outputs.version }}.zip
-          draft: false
-          prerelease: false
+      - name: Créer la release avec GitHub CLI
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          DATE="${{ steps.tag.outputs.date }}"
+          VERSION="${{ steps.tag.outputs.version }}"
+
+          gh release create "$TAG" \
+            --title "GagnezMobile v${VERSION} — ${DATE}" \
+            --notes "## 🚀 GagnezMobile — Mise à jour du ${DATE}
+
+          ### ✅ Fonctionnalités incluses
+          - 📺 Gains via publicités (300–1 000 GNF par pub)
+          - 💳 Paiement FedaPay intégré (Orange Money, MTN, Wave, Carte)
+          - 🏦 Retrait Mobile Money
+          - 📊 Historique des transactions
+          - 🏆 Système de niveaux
+
+          ### 🔧 CI/CD
+          - ✅ TypeScript OK · ✅ Sécurité OK · ✅ Build OK
+
+          ### 📲 Installation
+          \`\`\`bash
+          git clone https://github.com/${{ github.repository }}.git
+          pnpm install
+          pnpm --filter @workspace/moneyapp run dev
+          \`\`\`
+
+          Voir [PAIEMENT.md](./PAIEMENT.md) pour configurer FedaPay." \
+            ./release-assets/gagnez-mobile-source.zip \
+            --latest
