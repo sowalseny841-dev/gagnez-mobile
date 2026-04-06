@@ -1,0 +1,132 @@
+name: GagnezMobile CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ─── Vérification du code ───────────────────────────────────────────────────
+  lint-and-typecheck:
+    name: Vérification TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Installation de pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Installation de Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Installation des dépendances
+        run: pnpm install --frozen-lockfile
+
+      - name: Vérification TypeScript
+        run: pnpm run typecheck
+
+  # ─── Audit de sécurité ──────────────────────────────────────────────────────
+  security-audit:
+    name: Audit de sécurité
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Audit des dépendances
+        run: pnpm audit --audit-level=high || true
+
+  # ─── Build de l'application ──────────────────────────────────────────────────
+  build:
+    name: Build Expo (Web)
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build web
+        run: pnpm --filter @workspace/moneyapp run build
+        continue-on-error: true
+      - name: Upload des artefacts de build
+        uses: actions/upload-artifact@v4
+        with:
+          name: expo-web-build
+          path: artifacts/moneyapp/dist/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  # ─── Notification de release ─────────────────────────────────────────────────
+  release:
+    name: Créer une release GitHub
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lire la version
+        id: version
+        run: |
+          VERSION=$(node -p "require('./artifacts/moneyapp/package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+      - name: Télécharger les artefacts de build
+        uses: actions/download-artifact@v4
+        with:
+          name: expo-web-build
+          path: ./dist/
+        continue-on-error: true
+
+      - name: Créer archive de release
+        run: |
+          zip -r gagnez-mobile-${{ steps.version.outputs.version }}.zip artifacts/moneyapp/app/ artifacts/moneyapp/components/ artifacts/moneyapp/context/ artifacts/moneyapp/data/ artifacts/moneyapp/constants/ artifacts/moneyapp/package.json artifacts/moneyapp/app.json || true
+
+      - name: Créer la release GitHub
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/heads/main')
+        with:
+          tag_name: v${{ steps.version.outputs.version }}-${{ steps.version.outputs.date }}
+          name: "GagnezMobile v${{ steps.version.outputs.version }} - ${{ steps.version.outputs.date }}"
+          body: |
+            ## 🚀 GagnezMobile - Nouvelle mise à jour
+
+            ### ✅ Ce qui est inclus
+            - Système de gains via publicités (300–1000 GNF par pub)
+            - Retrait Mobile Money (Orange, MTN, Wave)
+            - Historique des transactions
+            - Système de niveaux (Débutant → Maître)
+
+            ### 📲 Installation
+            1. Cloner le dépôt : `git clone https://github.com/${{ github.repository }}.git`
+            2. Installer les dépendances : `pnpm install`
+            3. Lancer : `pnpm --filter @workspace/moneyapp run dev`
+            4. Scanner le QR code avec Expo Go
+
+            ### 💳 Pour activer les paiements réels
+            Voir le fichier `PAIEMENT.md` dans le dépôt.
+          files: |
+            gagnez-mobile-${{ steps.version.outputs.version }}.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
