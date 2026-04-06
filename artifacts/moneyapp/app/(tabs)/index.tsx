@@ -19,6 +19,7 @@ import { useApp } from "@/context/AppContext";
 import { BalanceCard } from "@/components/BalanceCard";
 import { AdCard, AdData } from "@/components/AdCard";
 import { WithdrawModal } from "@/components/WithdrawModal";
+import { RechargementModal } from "@/components/RechargementModal";
 import { getDailyAds } from "@/data/ads";
 
 export default function HomeScreen() {
@@ -29,6 +30,7 @@ export default function HomeScreen() {
   const [ads, setAds] = useState<AdData[]>(getDailyAds());
   const [completedAds, setCompletedAds] = useState<Set<string>>(new Set());
   const [withdrawVisible, setWithdrawVisible] = useState(false);
+  const [rechargementVisible, setRechargementVisible] = useState(false);
   const earnAnim = useRef(new Animated.Value(0)).current;
   const [lastEarned, setLastEarned] = useState(0);
   const [showEarn, setShowEarn] = useState(false);
@@ -69,16 +71,28 @@ export default function HomeScreen() {
           <Text style={[styles.appTitle, { color: colors.primary }]}>GagnezMobile</Text>
           <Text style={[styles.appSubtitle, { color: colors.mutedForeground }]}>Regardez, gagnez, retirez</Text>
         </View>
-        <TouchableOpacity
-          style={[styles.withdrawTopBtn, { backgroundColor: colors.primary }]}
-          onPress={() => {
-            if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setWithdrawVisible(true);
-          }}
-        >
-          <MaterialCommunityIcons name="bank-transfer-out" size={18} color="#fff" />
-          <Text style={styles.withdrawTopText}>Retirer</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={[styles.rechargeBtn, { backgroundColor: "#1B3F8B" }]}
+            onPress={() => {
+              if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setRechargementVisible(true);
+            }}
+          >
+            <MaterialCommunityIcons name="credit-card-plus" size={16} color="#fff" />
+            <Text style={styles.headerBtnText}>Recharger</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.withdrawTopBtn, { backgroundColor: colors.primary }]}
+            onPress={() => {
+              if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setWithdrawVisible(true);
+            }}
+          >
+            <MaterialCommunityIcons name="bank-transfer-out" size={16} color="#fff" />
+            <Text style={styles.headerBtnText}>Retirer</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <FlatList
@@ -147,6 +161,22 @@ export default function HomeScreen() {
         onClose={() => setWithdrawVisible(false)}
         onWithdraw={requestWithdraw}
       />
+
+      <RechargementModal
+        visible={rechargementVisible}
+        onClose={() => setRechargementVisible(false)}
+        onSuccess={(amount) => {
+          addEarning(amount, `Rechargement FedaPay`);
+          setLastEarned(amount);
+          setShowEarn(true);
+          earnAnim.setValue(0);
+          Animated.sequence([
+            Animated.spring(earnAnim, { toValue: 1, tension: 80, friction: 6, useNativeDriver: true }),
+            Animated.delay(2000),
+            Animated.timing(earnAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+          ]).start(() => setShowEarn(false));
+        }}
+      />
     </View>
   );
 }
@@ -171,17 +201,30 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     marginTop: 1,
   },
-  withdrawTopBtn: {
+  headerActions: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+  },
+  rechargeBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 14,
+    gap: 5,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
   },
-  withdrawTopText: {
+  withdrawTopBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  headerBtnText: {
     color: "#fff",
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: "Inter_700Bold",
   },
   listContent: { paddingTop: 16 },
