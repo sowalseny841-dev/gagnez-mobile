@@ -29,21 +29,26 @@ export default function HistoriqueScreen() {
 
   function renderItem({ item }: { item: Transaction }) {
     const isEarn = item.type === "earn";
+    const isRecharge = item.type === "recharge";
+    const isWithdraw = item.type === "withdraw";
+
+    const iconName = isEarn ? "cash-plus" : isRecharge ? "credit-card-plus" : "bank-transfer-out";
+    const iconColor = isEarn ? colors.primary : isRecharge ? "#1B3F8B" : colors.destructive;
+    const iconBg = isEarn ? colors.primary + "18" : isRecharge ? "#1B3F8B18" : colors.destructive + "18";
+    const amountColor = isWithdraw ? colors.destructive : isRecharge ? "#1B3F8B" : colors.primary;
+    const prefix = isWithdraw ? "-" : "+";
+
     return (
       <View style={[styles.txRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={[styles.txIcon, { backgroundColor: isEarn ? colors.primary + "18" : colors.destructive + "18" }]}>
-          <MaterialCommunityIcons
-            name={isEarn ? "cash-plus" : "bank-transfer-out"}
-            size={20}
-            color={isEarn ? colors.primary : colors.destructive}
-          />
+        <View style={[styles.txIcon, { backgroundColor: iconBg }]}>
+          <MaterialCommunityIcons name={iconName} size={20} color={iconColor} />
         </View>
         <View style={styles.txInfo}>
           <Text style={[styles.txDesc, { color: colors.foreground }]}>{item.description}</Text>
           <Text style={[styles.txDate, { color: colors.mutedForeground }]}>{formatDate(item.date)}</Text>
         </View>
-        <Text style={[styles.txAmount, { color: isEarn ? colors.primary : colors.destructive }]}>
-          {isEarn ? "+" : "-"}{item.amount.toLocaleString()} GNF
+        <Text style={[styles.txAmount, { color: amountColor }]}>
+          {prefix}{item.amount.toLocaleString()} GNF
         </Text>
       </View>
     );
