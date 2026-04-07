@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "GagnezMobile",
-    "slug": "gagnez-mobile",
+    "name": "Cahs  MONEY",
+    "slug": "cahsmoney",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "gagnez-mobile",
+    "scheme": "cahsmoney",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -15,11 +15,11 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.gagnez.mobile",
+      "bundleIdentifier": "com.cahsmoney.app",
       "buildNumber": "1"
     },
     "android": {
-      "package": "com.gagnez.mobile",
+      "package": "com.cahsmoney.app",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
@@ -40,7 +40,10 @@
               "scheme": "gagnez-mobile"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -64,8 +67,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "YOUR_EAS_PROJECT_ID"
+        "projectId": "12f183ac-dcb1-48d6-91c5-d09cdcad1550"
       }
-    }
+    },
+    "owner": "abdourahamaneexpodev"
   }
 }
